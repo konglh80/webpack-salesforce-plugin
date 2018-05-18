@@ -48,24 +48,23 @@ class WebpackSalesforcePlugin {
 
     __doUpload(resources, done) {
         console.log('Logging in to Salesforce.');
-        
+
         this.conn.login(this.options.salesforce.username, this.options.salesforce.password + (this.options.salesforce.token || ''), (err, res) => {
             if (err) {
-                console.error(err);
-                done();
+                done(err);
             }
             else {
                 console.log('Connected to Salesforce. Uploading resources.');
                 this.conn.metadata.upsert('StaticResource', resources, (err, results) => {
                     if (err)
-                        console.error(err);
+                        done(err);
                     else {
                         if (results && results.length) {
                             results.filter((r) => !r.success).forEach((r) => console.error(r));
                         }
-                    }
 
-                    done();
+                        done();
+                    }
                 });
             }
         });
@@ -73,7 +72,7 @@ class WebpackSalesforcePlugin {
 
     __zipResource(globbedResource) {
         if (globbedResource.files.length === 0) {
-            throw new Error('Resource ' + name + ' matched no files.');
+            throw new Error('Resource ' + globbedResource.name + ' matched no files.');
         }
 
         let zip = new Zip();
