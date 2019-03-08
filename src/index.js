@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import objectAssign from 'object-assign';
 import { Connection } from 'jsforce';
 import glob from 'glob';
@@ -109,29 +110,52 @@ class WebpackSalesforcePlugin {
 
     const zip = new Zip();
     globbedResource.files.forEach((f) => {
-      if (f.match(/.*?woff(2?)$/)) {
-        const data = fs.readFileSync(f);
-        zip.file(f, data);
-      } else if (f.match(/(png|jpg|jpeg|gif)$/)) {
-        const data = fs.readFileSync(f);
-        zip.file(f, data);
-      } else {
-        const data = fs.readFileSync(f, 'utf8');
-        zip.file(f, data);
+      if (this.options.debug) {
+        console.info('file', f);
       }
+
+      let data = null;
+      if (f.path.match(/.*?woff(2?)$/)) {
+        data = fs.readFileSync(f.path);
+      } else if (f.path.match(/(png|jpg|jpeg|gif)$/)) {
+        data = fs.readFileSync(f.path);
+      } else {
+        data = fs.readFileSync(f.path, 'utf8');
+      }
+
+      zip.file(f.pathInZip, data);
     });
 
-    return {
+    if (this.options.debug) {
+      const data = zip.generate({ base64: false, compression: 'DEFLATE' });
+      fs.writeFileSync(path.resolve('./temp.zip'), data, 'binary');
+    }
+
+    const result = {
       fullName: globbedResource.name,
       content: zip.generate({ base64: true, compression: 'DEFLATE' }),
       contentType: 'application/zip'
     };
+
+    return result;
   }
 
   __globFiles() {
     return this.options.resources.map((resource) => {
       const filesToZip = resource.files.map((fileGlob) => {
-        return glob.sync(fileGlob, {});
+        return glob.sync(fileGlob, {}).map((file) => {
+          const info = {
+            path: file,
+          };
+
+          if (resource.basePath && file.indexOf(resource.basePath) === 0) {
+            info.pathInZip = file.replace(resource.basePath, '');
+          } else {
+            info.pathInZip = file;
+          }
+
+          return info;
+        });
       }).reduce((currentList, nextList) => {
         return union(currentList, nextList);
       }, []);
